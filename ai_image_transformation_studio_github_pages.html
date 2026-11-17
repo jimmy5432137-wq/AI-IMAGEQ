@@ -1,0 +1,3238 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 影像姿勢與服裝轉換工作室 | Gemini Dual-Reference Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.0/babel.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(113, 113, 122, 0.4);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased selection:bg-indigo-500/30">
+  <div id="root">
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#a1a1aa;font-size:14px;">
+      正在載入 AI 影像姿勢與服裝轉換工作室...
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener("error", function (e) {
+      var rootEl = document.getElementById("root");
+      if (rootEl && rootEl.innerText.indexOf("正在載入") !== -1) {
+        rootEl.innerHTML =
+          '<div style="max-width:520px;margin:80px auto;padding:20px;border-radius:16px;background:#18181b;border:1px solid #ef4444;color:#fecaca;font-size:13px;line-height:1.6;">' +
+          '<strong style="color:#f87171;">頁面腳本載入異常：</strong><br/>' +
+          (e.message || "請確認網路連線正常，並使用純 UTF-8 編碼儲存 index.html。") +
+          "</div>";
+      }
+    });
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    // ========================================================================
+    // 0. INLINE SVG ICONS (Zero external module dependency for GitHub Pages)
+    // ========================================================================
+    const ICON_PATHS = {
+      sparkles: [
+        "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z",
+        "M20 3v4",
+        "M22 5h-4",
+        "M4 17v2",
+        "M5 18H3"
+      ],
+      upload: [
+        "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+        "M17 8l-5-5-5 5",
+        "M12 3v12"
+      ],
+      download: [
+        "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+        "M7 10l5 5 5-5",
+        "M12 15V3"
+      ],
+      rotateCw: [
+        "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8",
+        "M21 3v5h-5"
+      ],
+      crop: [
+        "M6 2v14a2 2 0 0 0 2 2h14",
+        "M18 22V8a2 2 0 0 0-2-2H2"
+      ],
+      zoomIn: [
+        "M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+        "M21 21l-4.35-4.35",
+        "M11 8v6",
+        "M8 11h6"
+      ],
+      zoomOut: [
+        "M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+        "M21 21l-4.35-4.35",
+        "M8 11h6"
+      ],
+      eye: [
+        "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z",
+        "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+      ],
+      eyeOff: [
+        "M9.88 9.88a3 3 0 1 0 4.24 4.24",
+        "M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68",
+        "M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61",
+        "M2 2l20 20"
+      ],
+      trash: [
+        "M3 6h18",
+        "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6",
+        "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"
+      ],
+      alert: [
+        "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z",
+        "M12 9v4",
+        "M12 17h.01"
+      ],
+      info: [
+        "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+        "M12 16v-4",
+        "M12 8h.01"
+      ],
+      square: [
+        "M5 5h14v14H5z"
+      ],
+      refresh: [
+        "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8",
+        "M21 3v5h-5",
+        "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16",
+        "M8 16H3v5"
+      ],
+      undo: [
+        "M9 14 4 9l5-5",
+        "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"
+      ],
+      redo: [
+        "M15 14l5-5-5-5",
+        "M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"
+      ],
+      eraser: [
+        "m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21",
+        "M22 21H7",
+        "m5 11 9 9"
+      ],
+      maximize: [
+        "M15 3h6v6",
+        "M9 21H3v-6",
+        "M21 3l-7 7",
+        "M3 21l7-7"
+      ],
+      split: [
+        "M8 19H5c-1 0-2-1-2-2V7c0-1 1-2 2-2h3",
+        "M16 5h3c1 0 2 1 2 2v10c0 1-1 2-2 2h-3",
+        "M12 4v16"
+      ],
+      star: [
+        "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+      ],
+      search: [
+        "M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+        "M21 21l-4.35-4.35"
+      ],
+      sun: [
+        "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+        "M12 2v2",
+        "M12 20v2",
+        "m4.93 4.93 1.41 1.41",
+        "m17.66 17.66 1.41 1.41",
+        "M2 12h2",
+        "M20 12h2",
+        "m6.34 17.66-1.41 1.41",
+        "m19.07 4.93-1.41 1.41"
+      ],
+      moon: [
+        "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"
+      ],
+      userCheck: [
+        "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+        "M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+        "m16 11 2 2 4-4"
+      ],
+      camera: [
+        "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z",
+        "M12 10a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+      ],
+      activity: [
+        "M22 12h-4l-3 9L9 3l-3 9H2"
+      ],
+      checkCircle: [
+        "M22 11.08V12a10 10 0 1 1-5.93-9.14",
+        "M22 4 12 14.01l-3-3"
+      ],
+      xCircle: [
+        "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+        "m15 9-6 6",
+        "m9 9 6 6"
+      ],
+      x: [
+        "M18 6 6 18",
+        "m6 6 12 12"
+      ],
+      swap: [
+        "M8 3 4 7l4 4",
+        "M4 7h16",
+        "m16 21 4-4-4-4",
+        "M20 17H4"
+      ],
+      shirt: [
+        "M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"
+      ],
+      person: [
+        "M12 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
+        "m9 20 3-6 3 6",
+        "m6 8 6 2 6-2",
+        "M12 10v4"
+      ],
+      key: [
+        "m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4",
+        "m21 2-9.6 9.6",
+        "M7.5 11a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"
+      ],
+      shield: [
+        "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+        "m9 12 2 2 4-4"
+      ],
+      clock: [
+        "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+        "M12 6v6l4 2"
+      ],
+      image: [
+        "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+        "M9 7.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z",
+        "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"
+      ],
+      wand: [
+        "M15 4V2",
+        "M15 16v-2",
+        "M8 9h2",
+        "M20 9h2",
+        "M17.8 11.8 19 13",
+        "M15 9h.01",
+        "M17.8 6.2 19 5",
+        "m3 21 9-9",
+        "M12.2 6.2 11 5"
+      ],
+      brush: [
+        "m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08",
+        "M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"
+      ],
+      history: [
+        "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
+        "M3 3v5h5",
+        "M12 7v5l4 2"
+      ]
+    };
+
+    function Icon({ name, className = "w-4 h-4" }) {
+      const paths = ICON_PATHS[name] || [];
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          {paths.map((d, idx) => (
+            <path key={idx} d={d} />
+          ))}
+        </svg>
+      );
+    }
+
+    // ========================================================================
+    // 1. API SECURITY & SESSION STORAGE (Zero Hardcoded Secret Keys)
+    // ========================================================================
+    const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
+    const GEMINI_VISION_MODEL = "gemini-3-flash-preview";
+    const SESSION_KEY_STORAGE = "gemini_studio_runtime_key_v1";
+    const SESSION_PROXY_STORAGE = "gemini_studio_runtime_proxy_v1";
+
+    function loadInitialApiKey() {
+      try {
+        if (typeof window !== "undefined" && window.__ENV__?.GEMINI_API_KEY) {
+          return window.__ENV__.GEMINI_API_KEY;
+        }
+        return sessionStorage.getItem(SESSION_KEY_STORAGE) || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function loadInitialProxyUrl() {
+      try {
+        if (typeof window !== "undefined" && window.__ENV__?.GEMINI_PROXY_URL) {
+          return window.__ENV__.GEMINI_PROXY_URL;
+        }
+        return sessionStorage.getItem(SESSION_PROXY_STORAGE) || "";
+      } catch {
+        return "";
+      }
+    }
+
+    // ========================================================================
+    // 2. BLOB & OBJECT URL MEMORY LIFECYCLE MANAGER
+    // ========================================================================
+    class ObjectUrlManager {
+      constructor() {
+        this.urls = new Set();
+      }
+      create(blob) {
+        const url = URL.createObjectURL(blob);
+        this.urls.add(url);
+        return url;
+      }
+      revoke(url) {
+        if (url && typeof url === "string" && url.startsWith("blob:") && this.urls.has(url)) {
+          URL.revokeObjectURL(url);
+          this.urls.delete(url);
+        }
+      }
+      revokeAll() {
+        this.urls.forEach((url) => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
+        });
+        this.urls.clear();
+      }
+    }
+
+    function base64ToBlob(base64Data, mimeType = "image/png") {
+      const byteCharacters = atob(base64Data);
+      const byteArrays = [];
+      const sliceSize = 8192;
+      for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        const slice = byteCharacters.slice(offset, offset + sliceSize);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        byteArrays.push(new Uint8Array(byteNumbers));
+      }
+      return new Blob(byteArrays, { type: mimeType });
+    }
+
+    async function blobUrlToInlineData(blobOrDataUrl) {
+      if (!blobOrDataUrl) throw new Error("無效的圖片資源");
+      if (blobOrDataUrl.startsWith("data:")) {
+        const [meta, base64] = blobOrDataUrl.split(",");
+        const mimeType = meta.match(/:(.*?);/)?.[1] || "image/jpeg";
+        return { mimeType, data: base64 };
+      }
+      const response = await fetch(blobOrDataUrl);
+      const blob = await response.blob();
+      const mimeType = blob.type || "image/jpeg";
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result;
+          const base64 = typeof dataUrl === "string" ? dataUrl.split(",")[1] : "";
+          resolve({ mimeType, data: base64 });
+        };
+        reader.onerror = () => reject(new Error("讀取圖片二進位資料失敗"));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // ========================================================================
+    // 3. STUDIO CONSTANTS
+    // ========================================================================
+    const COCO_KEYPOINTS = [
+      { id: "nose", label: "Nose", x: 500, y: 160, color: "#ef4444" },
+      { id: "neck", label: "Neck", x: 500, y: 245, color: "#f97316" },
+      { id: "r_shoulder", label: "R Shoulder", x: 415, y: 265, color: "#f59e0b" },
+      { id: "r_elbow", label: "R Elbow", x: 375, y: 390, color: "#eab308" },
+      { id: "r_wrist", label: "R Wrist", x: 350, y: 505, color: "#84cc16" },
+      { id: "l_shoulder", label: "L Shoulder", x: 585, y: 265, color: "#22c55e" },
+      { id: "l_elbow", label: "L Elbow", x: 625, y: 390, color: "#10b981" },
+      { id: "l_wrist", label: "L Wrist", x: 650, y: 505, color: "#14b8a6" },
+      { id: "r_hip", label: "R Hip", x: 445, y: 515, color: "#06b6d4" },
+      { id: "r_knee", label: "R Knee", x: 435, y: 710, color: "#0ea5e9" },
+      { id: "r_ankle", label: "R Ankle", x: 430, y: 895, color: "#3b82f6" },
+      { id: "l_hip", label: "L Hip", x: 555, y: 515, color: "#6366f1" },
+      { id: "l_knee", label: "L Knee", x: 565, y: 710, color: "#8b5cf6" },
+      { id: "l_ankle", label: "L Ankle", x: 570, y: 895, color: "#a855f7" },
+      { id: "r_eye", label: "R Eye", x: 478, y: 145, color: "#d946ef" },
+      { id: "l_eye", label: "L Eye", x: 522, y: 145, color: "#ec4899" },
+      { id: "r_ear", label: "R Ear", x: 452, y: 155, color: "#f43f5e" },
+      { id: "l_ear", label: "L Ear", x: 548, y: 155, color: "#fb7185" }
+    ];
+
+    const POSE_LIMBS = [
+      ["neck", "r_shoulder", "#f59e0b"],
+      ["r_shoulder", "r_elbow", "#eab308"],
+      ["r_elbow", "r_wrist", "#84cc16"],
+      ["neck", "l_shoulder", "#22c55e"],
+      ["l_shoulder", "l_elbow", "#10b981"],
+      ["l_elbow", "l_wrist", "#14b8a6"],
+      ["neck", "r_hip", "#06b6d4"],
+      ["r_hip", "r_knee", "#0ea5e9"],
+      ["r_knee", "r_ankle", "#3b82f6"],
+      ["neck", "l_hip", "#6366f1"],
+      ["l_hip", "l_knee", "#8b5cf6"],
+      ["l_knee", "l_ankle", "#a855f7"],
+      ["neck", "nose", "#ef4444"],
+      ["nose", "r_eye", "#d946ef"],
+      ["r_eye", "r_ear", "#f43f5e"],
+      ["nose", "l_eye", "#ec4899"],
+      ["l_eye", "l_ear", "#fb7185"]
+    ];
+
+    const TRANSFORM_MODES = [
+      {
+        id: "full-transform",
+        label: "全套姿勢與服裝轉換",
+        desc: "保留 Image A 五官，套用 Image B 姿勢、服裝與構圖"
+      },
+      {
+        id: "pose-comp-only",
+        label: "僅轉換姿勢與構圖",
+        desc: "保留 Image A 原本服裝，僅改變動作與鏡頭視角"
+      },
+      {
+        id: "outfit-only",
+        label: "僅更換服裝造型",
+        desc: "保留 Image A 原本姿勢，換上 Image B 的服裝穿搭"
+      }
+    ];
+
+    const PIPELINE_STRATEGIES = [
+      {
+        id: "disentangled",
+        label: "特徵解耦管線（推薦）",
+        desc: "提取去識別化骨架與服裝結構，五官還原最穩定"
+      },
+      {
+        id: "dual-lookbook",
+        label: "雙圖直接參照模式",
+        desc: "直接比對雙圖布料細節，遇限制時自動切換解耦備援"
+      }
+    ];
+
+    const PROMPT_PRESETS = [
+      "自然肌膚質感，85mm 人像鏡頭，電影級柔和自然棚拍光，高畫質寫實攝影",
+      "自然街拍光影，35mm 紀實鏡頭，細膩膠片顆粒感，自然景深與真實皮膚紋理",
+      "高級時裝雜誌大片質感，柔和輪廓逆光，精緻布料織紋細節，銳利焦點"
+    ];
+
+    // ========================================================================
+    // 4. IMAGE PROCESSING & RESILIENT GEMINI API HELPERS
+    // ========================================================================
+    async function processUploadedImage(file, urlManager) {
+      const tempRawUrl = URL.createObjectURL(file);
+      try {
+        return await new Promise((resolve, reject) => {
+          const img = new window.Image();
+          img.onload = () => {
+            const MAX_DIM = 1024;
+            let targetW = img.naturalWidth;
+            let targetH = img.naturalHeight;
+            if (Math.max(targetW, targetH) > MAX_DIM) {
+              const scale = MAX_DIM / Math.max(targetW, targetH);
+              targetW = Math.round(targetW * scale);
+              targetH = Math.round(targetH * scale);
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = targetW;
+            canvas.height = targetH;
+            canvas.getContext("2d").drawImage(img, 0, 0, targetW, targetH);
+
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  reject(new Error("圖片壓縮轉換 Blob 失敗。"));
+                  return;
+                }
+                const objectUrl = urlManager.create(blob);
+                resolve({
+                  name: file.name,
+                  sizeFormatted:
+                    blob.size > 1024 * 1024
+                      ? `${(blob.size / (1024 * 1024)).toFixed(2)} MB`
+                      : `${(blob.size / 1024).toFixed(1)} KB`,
+                  width: targetW,
+                  height: targetH,
+                  objectUrl
+                });
+              },
+              "image/jpeg",
+              0.9
+            );
+          };
+          img.onerror = () => reject(new Error("圖片解碼失敗，請確認檔案格式是否正確。"));
+          img.src = tempRawUrl;
+        });
+      } finally {
+        URL.revokeObjectURL(tempRawUrl);
+      }
+    }
+
+    async function renderSkeletonMapBlob(keypoints, width = 768, height = 1024) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, width, height);
+
+      const kpMap = {};
+      keypoints.forEach((kp) => {
+        kpMap[kp.id] = kp;
+      });
+
+      ctx.lineWidth = Math.max(4, Math.round(width * 0.008));
+      ctx.lineCap = "round";
+      POSE_LIMBS.forEach(([a, b, color]) => {
+        const p1 = kpMap[a];
+        const p2 = kpMap[b];
+        if (p1 && p2) {
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          ctx.moveTo((p1.x / 1000) * width, (p1.y / 1000) * height);
+          ctx.lineTo((p2.x / 1000) * width, (p2.y / 1000) * height);
+          ctx.stroke();
+        }
+      });
+
+      const radius = Math.max(5, Math.round(width * 0.01));
+      keypoints.forEach((kp) => {
+        ctx.fillStyle = kp.color;
+        ctx.beginPath();
+        ctx.arc((kp.x / 1000) * width, (kp.y / 1000) * height, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), "image/png");
+      });
+    }
+
+    function parseGeminiJsonSafe(rawText) {
+      if (!rawText || typeof rawText !== "string") {
+        throw new Error("模型回傳內容為空，無法解析 JSON。");
+      }
+      let cleaned = rawText.trim();
+      cleaned = cleaned.replace(/^```(?:json|JSON)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        const firstBrace = cleaned.indexOf("{");
+        const lastBrace = cleaned.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+        }
+        throw new Error("模型結構化資料解析失敗（格式非有效 JSON）。");
+      }
+    }
+
+    async function callGeminiEndpoint(modelName, payload, signal, authConfig = {}) {
+      const { apiKey = "", proxyUrl = "" } = authConfig;
+      const trimmedProxy = proxyUrl.trim();
+      const trimmedKey = apiKey.trim();
+
+      const endpointUrl = trimmedProxy
+        ? `${trimmedProxy.replace(/\/$/, "")}/models/${modelName}:generateContent`
+        : `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${
+            trimmedKey ? `?key=${encodeURIComponent(trimmedKey)}` : ""
+          }`;
+
+      const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+      const MAX_RETRIES = 2;
+      let delay = 1000;
+      let lastError = null;
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch(endpointUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal,
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            return await res.json();
+          }
+
+          const errBody = await res.text().catch(() => "");
+          let parsedMsg = errBody;
+          try {
+            const errJson = JSON.parse(errBody);
+            parsedMsg = errJson?.error?.message || errBody;
+          } catch {}
+
+          if (!RETRYABLE_STATUS.has(res.status)) {
+            if (res.status === 401 || res.status === 403 || res.status === 400) {
+              throw new Error(
+                `API 金鑰無效或未設定 (${res.status})：請點擊右上角「設定 API Key」填入有效的 Gemini API Key。`
+              );
+            }
+            throw new Error(`請求錯誤 (${res.status}): ${parsedMsg || res.statusText}`);
+          }
+
+          lastError = new Error(`伺服器暫時忙碌 (${res.status}): ${parsedMsg || res.statusText}`);
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, delay));
+            delay *= 2;
+            continue;
+          }
+        } catch (err) {
+          if (err.name === "AbortError") throw err;
+          if (
+            err.message?.startsWith("API 金鑰無效") ||
+            err.message?.startsWith("請求錯誤")
+          ) {
+            throw err;
+          }
+          lastError = err;
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, delay));
+            delay *= 2;
+          }
+        }
+      }
+
+      throw lastError || new Error("無法連線至 Gemini 影像服務，請確認網路狀態或 API 設定。");
+    }
+
+    async function analyzeSubjectIdentityA(imageObjectUrl, authConfig) {
+      const inlineData = await blobUrlToInlineData(imageObjectUrl);
+      const prompt = `Describe the visual styling and portrait characteristics of the subject in this photo for fashion editorial continuity:
+1. subjectPortraitSummary: Concise, objective description of apparent age range, gender presentation, hair length/color/style, facial structure, glasses/accessories, and skin tone under neutral daylight.
+2. originalOutfit: Brief description of what they are currently wearing in this photo.
+Keep it strictly objective and photography-focused (2 sentences).`;
+
+      const payload = {
+        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              subjectPortraitSummary: { type: "STRING" },
+              originalOutfit: { type: "STRING" }
+            }
+          }
+        }
+      };
+
+      const result = await callGeminiEndpoint(GEMINI_VISION_MODEL, payload, undefined, authConfig);
+      const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) return null;
+      return parseGeminiJsonSafe(rawText);
+    }
+
+    async function analyzeReferenceImageB(imageObjectUrl, authConfig) {
+      const inlineData = await blobUrlToInlineData(imageObjectUrl);
+      const prompt = `Analyze ONLY the pose, outfit, and photographic composition of this fashion reference image (do NOT describe facial identity).
+Return structured JSON with concrete, photography-safe details:
+1. poseDescription: Exact human body posture, head angle, gaze direction, shoulder alignment, arm/hand placement, and stance.
+2. outfitDescription: Complete clothing styling breakdown—garment types, colors, patterns, fabric textures, collar/neckline, sleeves, and footwear/accessories.
+3. compositionAndLighting: Shot framing (close-up, half-body, three-quarter, full-body), camera angle, background setting, and studio/natural lighting mood.
+4. summary: Concise 2-sentence editorial direction combining pose, outfit, framing, and lighting.
+5. keypoints: Normalized 0-1000 coordinates (x: 0 left to 1000 right, y: 0 top to 1000 bottom) for the 18 COCO landmarks: nose, neck, r_shoulder, r_elbow, r_wrist, l_shoulder, l_elbow, l_wrist, r_hip, r_knee, r_ankle, l_hip, l_knee, l_ankle, r_eye, l_eye, r_ear, l_ear.`;
+
+      const payload = {
+        contents: [{ role: "user", parts: [{ text: prompt }, { inlineData }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              poseDescription: { type: "STRING" },
+              outfitDescription: { type: "STRING" },
+              compositionAndLighting: { type: "STRING" },
+              summary: { type: "STRING" },
+              keypoints: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    id: { type: "STRING" },
+                    x: { type: "NUMBER" },
+                    y: { type: "NUMBER" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      };
+
+      const result = await callGeminiEndpoint(GEMINI_VISION_MODEL, payload, undefined, authConfig);
+      const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error("無法解析參考照片的姿勢與服裝結構。");
+      return parseGeminiJsonSafe(rawText);
+    }
+
+    function extractGeneratedBlobFromResponse(result, urlManager) {
+      const candidate = result?.candidates?.[0];
+      const imgPart = candidate?.content?.parts?.find((p) => p.inlineData);
+      if (!imgPart?.inlineData?.data) {
+        const reason = candidate?.finishReason || "NO_IMAGE";
+        const err = new Error(`模型未回傳圖片（狀態：${reason}）`);
+        err.finishReason = reason;
+        throw err;
+      }
+      const mimeType = imgPart.inlineData.mimeType || "image/png";
+      const blob = base64ToBlob(imgPart.inlineData.data, mimeType);
+      const objectUrl = urlManager.create(blob);
+      return { objectUrl, note: "Gemini 生成完成" };
+    }
+
+    async function generateGeminiTransformation(params, signal) {
+      const {
+        mode,
+        strategy = "disentangled",
+        imageAUrl,
+        imageBUrl,
+        keypoints,
+        imageBSize,
+        weights,
+        userPrompt,
+        aspectRatio,
+        variations,
+        poseAnalysis,
+        subjectAnchor,
+        authConfig,
+        urlManager,
+        onProgress,
+        onItemReady
+      } = params;
+
+      const totalCount = Math.min(Math.max(1, variations || 1), 4);
+      const batchStartTime = performance.now();
+      let completedCount = 0;
+
+      onProgress?.({
+        stage: "步驟 1/3：正在分析主角外觀特徵與參考圖姿勢服裝...",
+        percent: 10,
+        completed: 0,
+        total: totalCount,
+        etaSeconds: null
+      });
+
+      const [resolvedSubjectA, resolvedAnalysisB] = await Promise.all([
+        subjectAnchor
+          ? Promise.resolve(subjectAnchor)
+          : analyzeSubjectIdentityA(imageAUrl, authConfig).catch(() => null),
+        poseAnalysis
+          ? Promise.resolve(poseAnalysis)
+          : imageBUrl
+          ? analyzeReferenceImageB(imageBUrl, authConfig).catch(() => null)
+          : Promise.resolve(null)
+      ]);
+
+      let effectiveKeypoints = keypoints;
+      if (
+        !poseAnalysis &&
+        Array.isArray(resolvedAnalysisB?.keypoints) &&
+        resolvedAnalysisB.keypoints.length >= 10
+      ) {
+        effectiveKeypoints = COCO_KEYPOINTS.map((baseKp) => {
+          const found = resolvedAnalysisB.keypoints.find((k) => k.id === baseKp.id);
+          return found
+            ? {
+                ...baseKp,
+                x: Math.max(20, Math.min(980, Math.round(found.x))),
+                y: Math.max(20, Math.min(980, Math.round(found.y)))
+              }
+            : baseKp;
+        });
+      }
+
+      let skeletonInlineData = null;
+      if (mode !== "outfit-only" && Array.isArray(effectiveKeypoints) && effectiveKeypoints.length > 0) {
+        const skelBlob = await renderSkeletonMapBlob(
+          effectiveKeypoints,
+          imageBSize?.width || 768,
+          imageBSize?.height || 1024
+        );
+        if (skelBlob) {
+          const tempSkelUrl = URL.createObjectURL(skelBlob);
+          try {
+            skeletonInlineData = await blobUrlToInlineData(tempSkelUrl);
+          } finally {
+            URL.revokeObjectURL(tempSkelUrl);
+          }
+        }
+      }
+
+      const inlineA = await blobUrlToInlineData(imageAUrl);
+      const inlineB = imageBUrl ? await blobUrlToInlineData(imageBUrl) : null;
+
+      const buildSingleSubjectEditPrompt = (idx, includeSkeleton) => {
+        const lines = [
+          `Editorial fashion portrait photography (variation #${idx + 1}).`,
+          `Edit the provided portrait photograph so the exact same person is photographed in a new lookbook shot while keeping their natural face, hairstyle, and likeness (${weights.identity}% consistency).`
+        ];
+
+        if (includeSkeleton && mode !== "outfit-only") {
+          lines.push(
+            `Use the accompanying color-coded pose skeleton diagram as a spatial guide for head tilt, shoulder line, and arm placement (${weights.poseOutfit}% pose alignment), without drawing any lines in the final photo.`
+          );
+        }
+
+        if (resolvedAnalysisB) {
+          if (mode === "full-transform") {
+            lines.push(`Pose & Framing (${weights.poseOutfit}% match): ${resolvedAnalysisB.poseDescription}`);
+            lines.push(`Outfit Styling (${weights.poseOutfit}% match): Dress the subject in ${resolvedAnalysisB.outfitDescription}`);
+            lines.push(`Camera & Lighting (${weights.composition}% match): ${resolvedAnalysisB.compositionAndLighting}`);
+          } else if (mode === "pose-comp-only") {
+            lines.push(`Keep the subject's original clothing from the photo, while adjusting their pose to: ${resolvedAnalysisB.poseDescription}`);
+            lines.push(`Camera & Lighting (${weights.composition}% match): ${resolvedAnalysisB.compositionAndLighting}`);
+          } else if (mode === "outfit-only") {
+            lines.push(`Keep the subject's exact original pose and framing from the photo, while changing their outfit to: ${resolvedAnalysisB.outfitDescription}`);
+            lines.push(`Lighting mood (${weights.composition}% match): ${resolvedAnalysisB.compositionAndLighting}`);
+          }
+        } else {
+          lines.push(`Apply natural editorial posture, tailored clothing, and soft studio lighting.`);
+        }
+
+        if (userPrompt?.trim()) {
+          lines.push(`Photography Style: ${userPrompt.trim()}`);
+        }
+
+        return lines.join("\n\n");
+      };
+
+      const buildDualLookbookPrompt = (idx) => {
+        const lines = [
+          `Editorial fashion lookbook portrait (take #${idx + 1}).`,
+          `Feature the person from the first photo, preserving their natural facial features and hairstyle (${weights.identity}% consistency).`,
+          `Use the second photo purely as a styling, outfit, and pose reference:`
+        ];
+
+        if (mode === "full-transform") {
+          lines.push(
+            `Dress the person from the first photo in the outfit from the second photo and arrange them in the same pose, camera framing, and lighting (${weights.poseOutfit}% styling & pose match, ${weights.composition}% lighting match).`
+          );
+        } else if (mode === "pose-comp-only") {
+          lines.push(
+            `Keep the person from the first photo wearing their original clothing, arranged in the pose and camera framing of the second photo (${weights.poseOutfit}% pose match).`
+          );
+        } else if (mode === "outfit-only") {
+          lines.push(
+            `Keep the person from the first photo in their exact original pose and framing, wearing the outfit shown in the second photo (${weights.poseOutfit}% wardrobe match).`
+          );
+        }
+
+        if (userPrompt?.trim()) {
+          lines.push(`Photography Style: ${userPrompt.trim()}`);
+        }
+
+        return lines.join("\n\n");
+      };
+
+      const buildTextConditionedFallbackPrompt = (idx) => {
+        const subjectDesc =
+          resolvedSubjectA?.subjectPortraitSummary ||
+          "A stylish portrait subject with natural skin texture and warm, authentic expression";
+        const outfitDesc =
+          mode === "pose-comp-only"
+            ? resolvedSubjectA?.originalOutfit || "modern smart-casual tailored outfit"
+            : resolvedAnalysisB?.outfitDescription || "chic contemporary editorial fashion outfit";
+        const poseDesc =
+          resolvedAnalysisB?.poseDescription || "relaxed, confident natural editorial portrait pose";
+        const compDesc =
+          resolvedAnalysisB?.compositionAndLighting ||
+          "medium portrait framing, soft diffused studio lighting, shallow depth of field";
+
+        return [
+          `High-resolution photorealistic editorial portrait photograph (take #${idx + 1}).`,
+          `Subject: ${subjectDesc}.`,
+          `Pose & Expression: ${poseDesc}.`,
+          `Wardrobe: ${outfitDesc}.`,
+          `Framing & Lighting: ${compDesc}.`,
+          userPrompt?.trim() ? `Photography Direction: ${userPrompt.trim()}` : ""
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      };
+
+      onProgress?.({
+        stage: `步驟 2/3：正在並發渲染 ${totalCount} 張高畫質轉換影像...`,
+        percent: 25,
+        completed: 0,
+        total: totalCount,
+        etaSeconds: null
+      });
+
+      const generationStartTime = performance.now();
+
+      const tasks = Array.from({ length: totalCount }, async (_, idx) => {
+        if (idx > 0) await new Promise((r) => setTimeout(r, idx * 300));
+
+        const runSingleSubjectPass = async (includeSkeleton) => {
+          const parts = [{ text: buildSingleSubjectEditPrompt(idx, includeSkeleton) }, { inlineData: inlineA }];
+          if (includeSkeleton && skeletonInlineData) {
+            parts.push({ inlineData: skeletonInlineData });
+          }
+          const payload = {
+            contents: [{ role: "user", parts }],
+            generationConfig: {
+              responseModalities: ["IMAGE"],
+              imageConfig: { aspectRatio: aspectRatio || "3:4" }
+            }
+          };
+          const result = await callGeminiEndpoint(GEMINI_IMAGE_MODEL, payload, signal, authConfig);
+          return extractGeneratedBlobFromResponse(result, urlManager);
+        };
+
+        const runDualLookbookPass = async () => {
+          const parts = [{ text: buildDualLookbookPrompt(idx) }, { inlineData: inlineA }];
+          if (inlineB) parts.push({ inlineData: inlineB });
+          const payload = {
+            contents: [{ role: "user", parts }],
+            generationConfig: {
+              responseModalities: ["IMAGE"],
+              imageConfig: { aspectRatio: aspectRatio || "3:4" }
+            }
+          };
+          const result = await callGeminiEndpoint(GEMINI_IMAGE_MODEL, payload, signal, authConfig);
+          return extractGeneratedBlobFromResponse(result, urlManager);
+        };
+
+        const runTextConditionedPass = async () => {
+          const payload = {
+            contents: [{ role: "user", parts: [{ text: buildTextConditionedFallbackPrompt(idx) }] }],
+            generationConfig: {
+              responseModalities: ["IMAGE"],
+              imageConfig: { aspectRatio: aspectRatio || "3:4" }
+            }
+          };
+          const result = await callGeminiEndpoint(GEMINI_IMAGE_MODEL, payload, signal, authConfig);
+          const out = extractGeneratedBlobFromResponse(result, urlManager);
+          return { ...out, note: "已透過特徵描述重繪管線完成生成" };
+        };
+
+        let itemResult;
+        if (strategy === "dual-lookbook") {
+          try {
+            itemResult = await runDualLookbookPass();
+          } catch (err1) {
+            if (err1.name === "AbortError") throw err1;
+            try {
+              itemResult = await runSingleSubjectPass(false);
+            } catch (err2) {
+              if (err2.name === "AbortError") throw err2;
+              itemResult = await runTextConditionedPass();
+            }
+          }
+        } else {
+          try {
+            itemResult = await runSingleSubjectPass(Boolean(skeletonInlineData));
+          } catch (err1) {
+            if (err1.name === "AbortError") throw err1;
+            if (skeletonInlineData) {
+              try {
+                itemResult = await runSingleSubjectPass(false);
+              } catch (err2) {
+                if (err2.name === "AbortError") throw err2;
+                itemResult = await runTextConditionedPass();
+              }
+            } else {
+              itemResult = await runTextConditionedPass();
+            }
+          }
+        }
+
+        completedCount += 1;
+        const elapsedMs = performance.now() - generationStartTime;
+        const avgMsPerImage = elapsedMs / completedCount;
+        const remainingCount = totalCount - completedCount;
+        const etaSeconds = remainingCount > 0 ? Math.max(1, Math.round((avgMsPerImage * remainingCount) / 1000)) : 0;
+        const percent = Math.min(99, Math.round(25 + (completedCount / totalCount) * 75));
+
+        const enrichedItem = {
+          ...itemResult,
+          id: `res_${Date.now()}_${idx}`,
+          index: idx,
+          timestamp: new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })
+        };
+
+        onItemReady?.(enrichedItem);
+        onProgress?.({
+          stage:
+            remainingCount > 0
+              ? `已完成 ${completedCount} / ${totalCount} 張（預估剩餘約 ${etaSeconds} 秒）...`
+              : `全部 ${totalCount} 張影像渲染完成！`,
+          percent,
+          completed: completedCount,
+          total: totalCount,
+          etaSeconds
+        });
+
+        return enrichedItem;
+      });
+
+      const settled = await Promise.allSettled(tasks);
+      const succeeded = settled
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => r.value)
+        .sort((a, b) => a.index - b.index);
+      const failed = settled.filter((r) => r.status === "rejected").map((r) => r.reason);
+
+      if (succeeded.length === 0) {
+        const abortErr = failed.find((e) => e?.name === "AbortError");
+        if (abortErr) throw abortErr;
+        const firstMsg = failed[0]?.finishReason || failed[0]?.message || "未知錯誤";
+        throw new Error(
+          `生成未完成（${firstMsg}）。請確認 API Key 設定正確，或嘗試更換清晰的照片再試一次。`
+        );
+      }
+
+      const totalElapsedSec = ((performance.now() - batchStartTime) / 1000).toFixed(1);
+
+      return {
+        images: succeeded,
+        failedCount: failed.length,
+        totalElapsedSec,
+        extractedAnalysisB: resolvedAnalysisB,
+        extractedKeypoints: effectiveKeypoints,
+        extractedSubjectA: resolvedSubjectA
+      };
+    }
+
+    async function executeGeminiInpaint(
+      { baseImageUrl, maskBlob, referenceImageUrl, prompt, strength },
+      authConfig,
+      urlManager,
+      signal
+    ) {
+      const instruction = [
+        `TASK: Precision Image Inpainting & Local Region Editing (Edit Strength: ${strength}%).`,
+        `[IMAGE 1]: Original base photograph to modify.`,
+        `[IMAGE 2]: Binary mask map where PURE WHITE (#FFFFFF) marks the exact region to regenerate, and PURE BLACK (#000000) regions MUST remain untouched and identical to Image 1.`,
+        referenceImageUrl
+          ? `[IMAGE 3]: Subject identity reference to keep facial features consistent if the edited region involves the person.`
+          : "",
+        `EDIT INSTRUCTION FOR WHITE MASK AREA: ${prompt}`,
+        `Blend edges seamlessly with matching lighting, shadows, skin/fabric texture, and perspective.`
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const parts = [{ text: instruction }];
+      const inlineBase = await blobUrlToInlineData(baseImageUrl);
+      parts.push({ inlineData: inlineBase });
+
+      const tempMaskUrl = URL.createObjectURL(maskBlob);
+      try {
+        const inlineMask = await blobUrlToInlineData(tempMaskUrl);
+        parts.push({ inlineData: inlineMask });
+      } finally {
+        URL.revokeObjectURL(tempMaskUrl);
+      }
+
+      if (referenceImageUrl) {
+        const inlineRef = await blobUrlToInlineData(referenceImageUrl);
+        parts.push({ inlineData: inlineRef });
+      }
+
+      const result = await callGeminiEndpoint(
+        GEMINI_IMAGE_MODEL,
+        {
+          contents: [{ role: "user", parts }],
+          generationConfig: { responseModalities: ["IMAGE"] }
+        },
+        signal,
+        authConfig
+      );
+
+      const imgPart = result?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+      if (!imgPart?.inlineData?.data) {
+        throw new Error("局部重繪未回傳影像，請檢查塗抹範圍與修改說明。");
+      }
+
+      const outBlob = base64ToBlob(imgPart.inlineData.data, imgPart.inlineData.mimeType || "image/png");
+      const objectUrl = urlManager.create(outBlob);
+
+      return [{ objectUrl, note: "局部重繪完成" }];
+    }
+
+    // ========================================================================
+    // 5. REFERENCE IMAGE CARD
+    // ========================================================================
+    function ReferenceImageCard({
+      badge,
+      title,
+      subtitle,
+      imageState,
+      onImageChange,
+      onNotify,
+      darkMode,
+      urlManager,
+      isReferenceB = false,
+      keypoints = [],
+      onKeypointsChange,
+      showSkeleton = false,
+      onToggleSkeleton,
+      poseAnalysis = null,
+      onAnalyzePose,
+      isAnalyzingPose = false
+    }) {
+      const fileInputRef = useRef(null);
+      const overlayRef = useRef(null);
+      const [zoom, setZoom] = useState(1);
+      const [cropMode, setCropMode] = useState(false);
+      const [cropRatio, setCropRatio] = useState("3:4");
+      const [cropBox, setCropBox] = useState({ x: 15, y: 10, w: 70, h: 80 });
+      const [draggingJoint, setDraggingJoint] = useState(null);
+
+      const handleFile = async (file) => {
+        if (!file) return;
+        if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+          onNotify("error", "僅支援 JPG、PNG 或 WEBP 格式圖片。");
+          return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+          onNotify("error", "圖片大小不可超過 20MB。");
+          return;
+        }
+        try {
+          const processed = await processUploadedImage(file, urlManager);
+          onImageChange(processed);
+          setZoom(1);
+          setCropMode(false);
+          onNotify("success", `已載入 ${badge} (${processed.width}×${processed.height})`);
+        } catch (err) {
+          onNotify("error", err.message);
+        }
+      };
+
+      const handleRotate = () => {
+        if (!imageState?.objectUrl) return;
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalHeight;
+          canvas.height = img.naturalWidth;
+          const ctx = canvas.getContext("2d");
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate(Math.PI / 2);
+          ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+          canvas.toBlob((blob) => {
+            if (!blob) return;
+            const nextUrl = urlManager.create(blob);
+            onImageChange({
+              ...imageState,
+              width: canvas.width,
+              height: canvas.height,
+              objectUrl: nextUrl
+            });
+          }, "image/png");
+        };
+        img.src = imageState.objectUrl;
+      };
+
+      const applyCrop = () => {
+        if (!imageState?.objectUrl) return;
+        const img = new window.Image();
+        img.onload = () => {
+          const sx = Math.round((cropBox.x / 100) * img.naturalWidth);
+          const sy = Math.round((cropBox.y / 100) * img.naturalHeight);
+          const sw = Math.max(32, Math.round((cropBox.w / 100) * img.naturalWidth));
+          const sh = Math.max(32, Math.round((cropBox.h / 100) * img.naturalHeight));
+
+          const canvas = document.createElement("canvas");
+          canvas.width = sw;
+          canvas.height = sh;
+          canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+          canvas.toBlob((blob) => {
+            if (!blob) return;
+            const nextUrl = urlManager.create(blob);
+            onImageChange({
+              ...imageState,
+              width: sw,
+              height: sh,
+              objectUrl: nextUrl
+            });
+            setCropMode(false);
+            onNotify("success", `${badge} 已完成裁切 (${sw}×${sh})`);
+          }, "image/png");
+        };
+        img.src = imageState.objectUrl;
+      };
+
+      const selectPresetRatio = (r) => {
+        setCropRatio(r);
+        if (r === "1:1") setCropBox({ x: 15, y: 15, w: 70, h: 70 });
+        else if (r === "3:4") setCropBox({ x: 18, y: 10, w: 64, h: 80 });
+        else if (r === "16:9") setCropBox({ x: 10, y: 25, w: 80, h: 50 });
+        else setCropBox({ x: 10, y: 10, w: 80, h: 80 });
+      };
+
+      const handleSkeletonMove = (e) => {
+        if (!draggingJoint || !overlayRef.current || !onKeypointsChange) return;
+        const rect = overlayRef.current.getBoundingClientRect();
+        const nx = Math.max(20, Math.min(980, Math.round(((e.clientX - rect.left) / rect.width) * 1000)));
+        const ny = Math.max(20, Math.min(980, Math.round(((e.clientY - rect.top) / rect.height) * 1000)));
+        onKeypointsChange(keypoints.map((kp) => (kp.id === draggingJoint ? { ...kp, x: nx, y: ny } : kp)));
+      };
+
+      const cardClass = darkMode
+        ? "bg-zinc-900/90 border-zinc-800 text-zinc-100"
+        : "bg-white border-zinc-200 text-zinc-900 shadow-sm";
+
+      return (
+        <div className={`rounded-2xl border p-4 sm:p-5 transition-all ${cardClass}`}>
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-2 py-0.5 text-xs font-bold rounded-md ${
+                    isReferenceB
+                      ? "bg-violet-500/15 text-violet-400 border border-violet-500/30"
+                      : "bg-indigo-500/15 text-indigo-400 border border-indigo-500/30"
+                  }`}
+                >
+                  {badge}
+                </span>
+                <h3 className="font-semibold text-base">{title}</h3>
+              </div>
+              <p className={`text-xs mt-1 ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>{subtitle}</p>
+            </div>
+
+            {imageState && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="更換照片"
+                  className={`p-2 rounded-lg border text-xs transition ${
+                    darkMode
+                      ? "bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-zinc-200"
+                      : "bg-zinc-100 border-zinc-200 hover:bg-zinc-200 text-zinc-700"
+                  }`}
+                >
+                  <Icon name="upload" className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onImageChange(null)}
+                  title="移除照片"
+                  className="p-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
+                >
+                  <Icon name="trash" className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+
+          {!imageState ? (
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleFile(e.dataTransfer.files?.[0]);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`h-72 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 text-center cursor-pointer transition group ${
+                darkMode
+                  ? "border-zinc-700/80 bg-zinc-950/60 hover:border-indigo-500/60 hover:bg-indigo-950/10"
+                  : "border-zinc-300 bg-zinc-50 hover:border-indigo-500 hover:bg-indigo-50/40"
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 transition group-hover:scale-105 ${
+                  isReferenceB ? "bg-violet-500/15 text-violet-400" : "bg-indigo-500/15 text-indigo-400"
+                }`}
+              >
+                <Icon name="upload" className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-medium mb-1">點擊或拖曳上傳照片</p>
+              <p className={`text-xs ${darkMode ? "text-zinc-500" : "text-zinc-400"}`}>
+                支援 JPG、PNG、WEBP（已自動清除 EXIF 隱私資訊）
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div
+                ref={overlayRef}
+                onPointerMove={handleSkeletonMove}
+                onPointerUp={() => setDraggingJoint(null)}
+                onPointerLeave={() => setDraggingJoint(null)}
+                className={`relative h-72 rounded-xl overflow-hidden flex items-center justify-center select-none border ${
+                  darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-100 border-zinc-200"
+                }`}
+              >
+                <img
+                  src={imageState.objectUrl}
+                  alt={badge}
+                  style={{ transform: `scale(${zoom})` }}
+                  className="max-h-full max-w-full object-contain transition-transform duration-150"
+                />
+
+                {cropMode && (
+                  <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                    <div
+                      style={{
+                        left: `${cropBox.x}%`,
+                        top: `${cropBox.y}%`,
+                        width: `${cropBox.w}%`,
+                        height: `${cropBox.h}%`
+                      }}
+                      className="absolute border-2 border-indigo-400 bg-indigo-500/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+                    >
+                      <span className="absolute -top-6 left-0 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded">
+                        裁切比例 {cropRatio}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {isReferenceB && showSkeleton && !cropMode && (
+                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
+                    {POSE_LIMBS.map(([a, b, color], i) => {
+                      const p1 = keypoints.find((k) => k.id === a);
+                      const p2 = keypoints.find((k) => k.id === b);
+                      if (!p1 || !p2) return null;
+                      return (
+                        <line
+                          key={i}
+                          x1={p1.x}
+                          y1={p1.y}
+                          x2={p2.x}
+                          y2={p2.y}
+                          stroke={color}
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          strokeOpacity="0.88"
+                        />
+                      );
+                    })}
+                    {keypoints.map((kp) => (
+                      <circle
+                        key={kp.id}
+                        cx={kp.x}
+                        cy={kp.y}
+                        r="18"
+                        fill={kp.color}
+                        stroke="#ffffff"
+                        strokeWidth="4"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          setDraggingJoint(kp.id);
+                        }}
+                        className="cursor-grab active:cursor-grabbing"
+                      />
+                    ))}
+                  </svg>
+                )}
+
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 text-[10px] font-mono text-zinc-200">
+                  {imageState.width} × {imageState.height}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                    className={`p-1.5 rounded-lg border ${
+                      darkMode ? "bg-zinc-800 border-zinc-700" : "bg-zinc-100 border-zinc-200"
+                    }`}
+                    title="縮小"
+                  >
+                    <Icon name="zoomOut" className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs font-mono px-1">{Math.round(zoom * 100)}%</span>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.25).toFixed(2)))}
+                    className={`p-1.5 rounded-lg border ${
+                      darkMode ? "bg-zinc-800 border-zinc-700" : "bg-zinc-100 border-zinc-200"
+                    }`}
+                    title="放大"
+                  >
+                    <Icon name="zoomIn" className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRotate}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1 ${
+                      darkMode ? "bg-zinc-800 border-zinc-700" : "bg-zinc-100 border-zinc-200"
+                    }`}
+                  >
+                    <Icon name="rotateCw" className="w-3.5 h-3.5" />
+                    <span>旋轉</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCropMode((c) => !c)}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1 ${
+                      cropMode
+                        ? "bg-indigo-600 border-indigo-500 text-white"
+                        : darkMode
+                        ? "bg-zinc-800 border-zinc-700"
+                        : "bg-zinc-100 border-zinc-200"
+                    }`}
+                  >
+                    <Icon name="crop" className="w-3.5 h-3.5" />
+                    <span>裁切</span>
+                  </button>
+                </div>
+
+                {isReferenceB && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={onAnalyzePose}
+                      disabled={isAnalyzingPose}
+                      className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-medium flex items-center gap-1"
+                    >
+                      <Icon name="activity" className={`w-3.5 h-3.5 ${isAnalyzingPose ? "animate-spin" : ""}`} />
+                      <span>{isAnalyzingPose ? "解析中..." : "AI 解析姿勢與服裝"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onToggleSkeleton}
+                      className={`p-1.5 rounded-lg border text-xs ${
+                        showSkeleton
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                          : darkMode
+                          ? "bg-zinc-800 border-zinc-700 text-zinc-400"
+                          : "bg-zinc-100 border-zinc-200 text-zinc-600"
+                      }`}
+                      title="顯示/隱藏骨架線"
+                    >
+                      <Icon name={showSkeleton ? "eye" : "eyeOff"} className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {cropMode && (
+                <div
+                  className={`p-2 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs ${
+                    darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    {["free", "1:1", "3:4", "16:9"].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => selectPresetRatio(r)}
+                        className={`px-2 py-1 rounded ${
+                          cropRatio === r ? "bg-indigo-600 text-white" : "bg-zinc-800 text-zinc-300"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCropMode(false)}
+                      className="px-2 py-1 rounded bg-zinc-800 text-zinc-300"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyCrop}
+                      className="px-2.5 py-1 rounded bg-emerald-600 text-white font-medium"
+                    >
+                      套用裁切
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isReferenceB && poseAnalysis && (
+                <div
+                  className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                    darkMode ? "bg-violet-950/15 border-violet-500/25" : "bg-violet-50/70 border-violet-200"
+                  }`}
+                >
+                  <div>
+                    <span className="font-semibold text-violet-400">姿勢與動作：</span>
+                    <span className={darkMode ? "text-zinc-300" : "text-zinc-700"}>
+                      {poseAnalysis.poseDescription}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-violet-400">服裝與穿搭：</span>
+                    <span className={darkMode ? "text-zinc-300" : "text-zinc-700"}>
+                      {poseAnalysis.outfitDescription}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-violet-400">構圖與光影：</span>
+                    <span className={darkMode ? "text-zinc-300" : "text-zinc-700"}>
+                      {poseAnalysis.compositionAndLighting}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ========================================================================
+    // 6. MASK EDITOR
+    // ========================================================================
+    function SimpleMaskEditor({
+      targetImage,
+      referenceImage,
+      availableSources,
+      onSelectSource,
+      onExecuteInpaint,
+      isGenerating,
+      darkMode
+    }) {
+      const baseCanvasRef = useRef(null);
+      const maskCanvasRef = useRef(null);
+      const [brushSize, setBrushSize] = useState(36);
+      const [isEraser, setIsEraser] = useState(false);
+      const [inpaintPrompt, setInpaintPrompt] = useState("修改服裝領口與材質細節，保持自然光影與人物五官不變");
+      const [inpaintStrength, setInpaintStrength] = useState(80);
+      const [isDrawing, setIsDrawing] = useState(false);
+      const [historyStack, setHistoryStack] = useState([]);
+      const [redoStack, setRedoStack] = useState([]);
+
+      useEffect(() => {
+        if (!targetImage?.objectUrl) return;
+        const img = new window.Image();
+        img.onload = () => {
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
+          const baseCanvas = baseCanvasRef.current;
+          const maskCanvas = maskCanvasRef.current;
+          if (!baseCanvas || !maskCanvas) return;
+
+          baseCanvas.width = w;
+          baseCanvas.height = h;
+          baseCanvas.getContext("2d").drawImage(img, 0, 0, w, h);
+
+          maskCanvas.width = w;
+          maskCanvas.height = h;
+          const mCtx = maskCanvas.getContext("2d");
+          mCtx.clearRect(0, 0, w, h);
+
+          setHistoryStack([mCtx.getImageData(0, 0, w, h)]);
+          setRedoStack([]);
+        };
+        img.src = targetImage.objectUrl;
+      }, [targetImage]);
+
+      const getCoords = (e) => {
+        const canvas = maskCanvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top) * scaleY,
+          scale: Math.max(scaleX, scaleY)
+        };
+      };
+
+      const handleDown = (e) => {
+        if (!maskCanvasRef.current || !targetImage) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setIsDrawing(true);
+        const { x, y, scale } = getCoords(e);
+        const ctx = maskCanvasRef.current.getContext("2d");
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = brushSize * scale;
+        ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
+        ctx.strokeStyle = "#8b5cf6";
+        ctx.fillStyle = "#8b5cf6";
+        ctx.beginPath();
+        ctx.arc(x, y, (brushSize * scale) / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      };
+
+      const handleMove = (e) => {
+        if (!isDrawing || !maskCanvasRef.current) return;
+        const { x, y, scale } = getCoords(e);
+        const ctx = maskCanvasRef.current.getContext("2d");
+        ctx.lineWidth = brushSize * scale;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      };
+
+      const handleUp = () => {
+        if (!isDrawing || !maskCanvasRef.current) return;
+        setIsDrawing(false);
+        const ctx = maskCanvasRef.current.getContext("2d");
+        const snap = ctx.getImageData(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+        setHistoryStack((prev) => [...prev.slice(-20), snap]);
+        setRedoStack([]);
+      };
+
+      const undo = () => {
+        if (historyStack.length <= 1 || !maskCanvasRef.current) return;
+        const curr = historyStack[historyStack.length - 1];
+        const prev = historyStack[historyStack.length - 2];
+        maskCanvasRef.current.getContext("2d").putImageData(prev, 0, 0);
+        setHistoryStack((s) => s.slice(0, -1));
+        setRedoStack((r) => [...r, curr]);
+      };
+
+      const redo = () => {
+        if (redoStack.length === 0 || !maskCanvasRef.current) return;
+        const next = redoStack[redoStack.length - 1];
+        maskCanvasRef.current.getContext("2d").putImageData(next, 0, 0);
+        setRedoStack((r) => r.slice(0, -1));
+        setHistoryStack((s) => [...s, next]);
+      };
+
+      const clearMask = () => {
+        if (!maskCanvasRef.current) return;
+        const ctx = maskCanvasRef.current.getContext("2d");
+        ctx.clearRect(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height);
+        setHistoryStack((s) => [
+          ...s.slice(-20),
+          ctx.getImageData(0, 0, maskCanvasRef.current.width, maskCanvasRef.current.height)
+        ]);
+        setRedoStack([]);
+      };
+
+      const submitInpaint = () => {
+        if (!targetImage?.objectUrl || !maskCanvasRef.current) return;
+        const srcCanvas = maskCanvasRef.current;
+        const outCanvas = document.createElement("canvas");
+        outCanvas.width = srcCanvas.width;
+        outCanvas.height = srcCanvas.height;
+        const outCtx = outCanvas.getContext("2d");
+        outCtx.fillStyle = "#000000";
+        outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+        const srcData = srcCanvas.getContext("2d").getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+        const dstData = outCtx.getImageData(0, 0, outCanvas.width, outCanvas.height);
+        for (let i = 0; i < srcData.data.length; i += 4) {
+          if (srcData.data[i + 3] > 20) {
+            dstData.data[i] = 255;
+            dstData.data[i + 1] = 255;
+            dstData.data[i + 2] = 255;
+            dstData.data[i + 3] = 255;
+          }
+        }
+        outCtx.putImageData(dstData, 0, 0);
+
+        outCanvas.toBlob((maskBlob) => {
+          if (!maskBlob) return;
+          onExecuteInpaint({
+            baseImageUrl: targetImage.objectUrl,
+            maskBlob,
+            referenceImageUrl: referenceImage?.objectUrl || null,
+            prompt: inpaintPrompt,
+            strength: inpaintStrength
+          });
+        }, "image/png");
+      };
+
+      const cardClass = darkMode ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200";
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className={`lg:col-span-8 rounded-2xl border p-4 sm:p-5 ${cardClass}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Icon name="brush" className="w-4 h-4 text-violet-400" />
+                  <span>局部微調重繪（塗抹想要修改的服裝、配件或背景）</span>
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {availableSources.map((src) => (
+                  <button
+                    key={src.id}
+                    type="button"
+                    onClick={() => onSelectSource(src)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                      targetImage?.objectUrl === src.objectUrl
+                        ? "bg-indigo-600 border-indigo-500 text-white"
+                        : darkMode
+                        ? "bg-zinc-800 border-zinc-700 text-zinc-300"
+                        : "bg-zinc-100 border-zinc-200 text-zinc-700"
+                    }`}
+                  >
+                    {src.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              className={`p-2.5 rounded-xl border mb-4 flex flex-wrap items-center gap-2 ${
+                darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setIsEraser(false)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
+                  !isEraser ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-300"
+                }`}
+              >
+                <Icon name="brush" className="w-3.5 h-3.5" />
+                <span>塗抹筆刷</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEraser(true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 ${
+                  isEraser ? "bg-amber-600 text-white" : "bg-zinc-800 text-zinc-300"
+                }`}
+              >
+                <Icon name="eraser" className="w-3.5 h-3.5" />
+                <span>橡皮擦</span>
+              </button>
+              <button
+                type="button"
+                onClick={undo}
+                disabled={historyStack.length <= 1}
+                className="p-1.5 rounded-lg bg-zinc-800 disabled:opacity-40 text-zinc-200"
+                title="復原"
+              >
+                <Icon name="undo" className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={redoStack.length === 0}
+                className="p-1.5 rounded-lg bg-zinc-800 disabled:opacity-40 text-zinc-200"
+                title="重做"
+              >
+                <Icon name="redo" className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={clearMask}
+                className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 text-xs"
+              >
+                清除塗抹
+              </button>
+            </div>
+
+            {!targetImage ? (
+              <div className="h-80 rounded-xl border-2 border-dashed border-zinc-700 flex items-center justify-center text-zinc-400 text-sm p-6 text-center">
+                請先在「影像轉換工作室」上傳照片或生成圖片後，再進行局部微調。
+              </div>
+            ) : (
+              <div className="relative rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center min-h-[400px] p-2">
+                <div className="relative inline-block max-w-full max-h-[520px]">
+                  <canvas ref={baseCanvasRef} className="max-w-full max-h-[520px] w-auto h-auto block rounded-lg" />
+                  <canvas
+                    ref={maskCanvasRef}
+                    onPointerDown={handleDown}
+                    onPointerMove={handleMove}
+                    onPointerUp={handleUp}
+                    style={{ opacity: 0.55, touchAction: "none" }}
+                    className="absolute inset-0 w-full h-full cursor-crosshair rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={`lg:col-span-4 rounded-2xl border p-5 space-y-5 h-fit ${cardClass}`}>
+            <h3 className="font-semibold text-base">微調參數</h3>
+
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">筆刷粗細</span>
+                <span className="font-mono text-indigo-400">{brushSize} px</span>
+              </div>
+              <input
+                type="range"
+                min="8"
+                max="120"
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                className="w-full accent-indigo-500"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="text-zinc-400">重繪幅度</span>
+                <span className="font-mono text-emerald-400">{inpaintStrength}%</span>
+              </div>
+              <input
+                type="range"
+                min="15"
+                max="100"
+                value={inpaintStrength}
+                onChange={(e) => setInpaintStrength(Number(e.target.value))}
+                className="w-full accent-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1.5">塗抹區域修改內容說明</label>
+              <textarea
+                rows={4}
+                value={inpaintPrompt}
+                onChange={(e) => setInpaintPrompt(e.target.value)}
+                placeholder="例如：換成米白色針織開襟衫、移除背景路人、調整袖口皺褶..."
+                className={`w-full rounded-xl border p-3 text-xs leading-relaxed focus:outline-none focus:border-indigo-500 ${
+                  darkMode ? "bg-zinc-950 border-zinc-800 text-zinc-100" : "bg-zinc-50 border-zinc-300 text-zinc-900"
+                }`}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={!targetImage || isGenerating || !inpaintPrompt.trim()}
+              onClick={submitInpaint}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Icon name="sparkles" className={`w-4 h-4 ${isGenerating ? "animate-spin" : ""}`} />
+              <span>{isGenerating ? "正在局部重繪中..." : "開始局部微調"}</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================================================
+    // 7. SPLIT COMPARE MODAL
+    // ========================================================================
+    function SplitCompareModal({ item, sourceA, sourceB, onClose, onDownload }) {
+      const [splitPos, setSplitPos] = useState(50);
+      const [compareWith, setCompareWith] = useState(sourceA ? "A" : "B");
+      const [zoomed, setZoomed] = useState(false);
+
+      if (!item) return null;
+      const originalUrl = compareWith === "A" ? sourceA?.objectUrl : sourceB?.objectUrl;
+
+      return (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            <div className="p-4 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Icon name="split" className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-semibold text-sm text-zinc-100">原圖與轉換結果對比</h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {sourceA && (
+                  <button
+                    type="button"
+                    onClick={() => setCompareWith("A")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                      compareWith === "A" ? "bg-indigo-600 text-white" : "bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    對比 Image A (人物原圖)
+                  </button>
+                )}
+                {sourceB && (
+                  <button
+                    type="button"
+                    onClick={() => setCompareWith("B")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                      compareWith === "B" ? "bg-violet-600 text-white" : "bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    對比 Image B (姿勢服裝參考)
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setZoomed((z) => !z)}
+                  className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                  title="放大檢視"
+                >
+                  <Icon name="maximize" className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 rounded-lg bg-zinc-800 hover:bg-rose-600 text-zinc-200"
+                >
+                  <Icon name="x" className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="relative flex-1 bg-zinc-950 overflow-auto flex items-center justify-center p-4 select-none min-h-[400px]">
+              <div
+                style={{ transform: zoomed ? "scale(1.6)" : "scale(1)" }}
+                className="relative max-w-full max-h-[62vh] transition-transform duration-200"
+              >
+                <img
+                  src={item.objectUrl}
+                  alt="Result"
+                  className="max-h-[62vh] w-auto object-contain rounded-xl block"
+                />
+                {originalUrl && (
+                  <div
+                    style={{ clipPath: `inset(0 ${100 - splitPos}% 0 0)` }}
+                    className="absolute inset-0 overflow-hidden rounded-xl"
+                  >
+                    <img src={originalUrl} alt="Original" className="w-full h-full object-contain bg-zinc-950" />
+                  </div>
+                )}
+                {originalUrl && (
+                  <div
+                    style={{ left: `${splitPos}%` }}
+                    className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)] pointer-events-none"
+                  >
+                    <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white shadow-lg">
+                      <Icon name="swap" className="w-4 h-4" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900 flex flex-wrap items-center justify-between gap-4">
+              {originalUrl ? (
+                <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+                  <span className="text-xs text-zinc-400 whitespace-nowrap">原圖 ({compareWith})</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={splitPos}
+                    onChange={(e) => setSplitPos(Number(e.target.value))}
+                    className="w-full accent-indigo-500"
+                  />
+                  <span className="text-xs text-indigo-400 font-semibold whitespace-nowrap">轉換結果</span>
+                </div>
+              ) : (
+                <span className="text-xs text-zinc-400">高畫質檢視</span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onDownload(item.objectUrl, `gemini_transform_${Date.now()}.png`)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Icon name="download" className="w-3.5 h-3.5" />
+                <span>下載圖片</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================================================
+    // 8. API KEY & PROXY CONFIGURATION MODAL
+    // ========================================================================
+    function ApiConfigModal({ isOpen, onClose, apiKey, onSaveApiKey, proxyUrl, onSaveProxyUrl, darkMode }) {
+      const [draftKey, setDraftKey] = useState(apiKey);
+      const [draftProxy, setDraftProxy] = useState(proxyUrl);
+      const [showKey, setShowKey] = useState(false);
+
+      useEffect(() => {
+        setDraftKey(apiKey);
+        setDraftProxy(proxyUrl);
+      }, [apiKey, proxyUrl, isOpen]);
+
+      if (!isOpen) return null;
+
+      return (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div
+            className={`border rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl ${
+              darkMode ? "bg-zinc-900 border-zinc-800 text-zinc-100" : "bg-white border-zinc-200 text-zinc-900"
+            }`}
+          >
+            <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Icon name="shield" className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-semibold text-sm">Gemini API 安全連線設定</h3>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-600 text-zinc-200"
+              >
+                <Icon name="x" className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-zinc-400 leading-relaxed">
+                為保護您的金鑰安全，程式碼中不包含任何寫死的 API Key。您在此輸入的金鑰僅儲存在瀏覽器當前分頁的{" "}
+                <code className="text-indigo-300">sessionStorage</code> 記憶體中，關閉分頁即自動清除。
+              </p>
+
+              <div>
+                <label className="block text-zinc-400 mb-1.5 font-medium">Gemini API Key</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={draftKey}
+                    onChange={(e) => setDraftKey(e.target.value)}
+                    placeholder="請貼上您的 Gemini API Key..."
+                    className={`flex-1 rounded-xl border px-3 py-2.5 font-mono ${
+                      darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-300"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((s) => !s)}
+                    className="p-2.5 rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300"
+                    title="顯示/隱藏"
+                  >
+                    <Icon name={showKey ? "eyeOff" : "eye"} className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 mb-1.5 font-medium">後端代理端點 URL（選填）</label>
+                <input
+                  type="text"
+                  value={draftProxy}
+                  onChange={(e) => setDraftProxy(e.target.value)}
+                  placeholder="若透過自家伺服器轉發請填寫端點，否則留空即可"
+                  className={`w-full rounded-xl border px-3 py-2.5 font-mono ${
+                    darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-300"
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSaveApiKey("");
+                    onSaveProxyUrl("");
+                    setDraftKey("");
+                    setDraftProxy("");
+                  }}
+                  className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30"
+                >
+                  清除金鑰
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSaveApiKey(draftKey);
+                    onSaveProxyUrl(draftProxy);
+                    onClose();
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
+                >
+                  儲存並套用
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ========================================================================
+    // 9. MAIN APPLICATION
+    // ========================================================================
+    function App() {
+      const [activeTab, setActiveTabState] = useState(() => {
+        const hash = window.location.hash.replace(/^#\/?/, "");
+        return ["studio", "mask", "history"].includes(hash) ? hash : "studio";
+      });
+
+      const setActiveTab = useCallback((tab) => {
+        setActiveTabState(tab);
+        if (window.location.hash !== `#/${tab}`) {
+          window.location.hash = `#/${tab}`;
+        }
+      }, []);
+
+      useEffect(() => {
+        const onHashChange = () => {
+          const hash = window.location.hash.replace(/^#\/?/, "");
+          if (["studio", "mask", "history"].includes(hash)) {
+            setActiveTabState(hash);
+          }
+        };
+        window.addEventListener("hashchange", onHashChange);
+        return () => window.removeEventListener("hashchange", onHashChange);
+      }, []);
+
+      const urlManagerRef = useRef(null);
+      if (!urlManagerRef.current) {
+        urlManagerRef.current = new ObjectUrlManager();
+      }
+      useEffect(() => {
+        const manager = urlManagerRef.current;
+        return () => manager.revokeAll();
+      }, []);
+
+      const [apiKey, setApiKeyState] = useState(() => loadInitialApiKey());
+      const [proxyUrl, setProxyUrlState] = useState(() => loadInitialProxyUrl());
+      const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+      const saveApiKey = useCallback((val) => {
+        setApiKeyState(val);
+        try {
+          if (val) sessionStorage.setItem(SESSION_KEY_STORAGE, val);
+          else sessionStorage.removeItem(SESSION_KEY_STORAGE);
+        } catch {}
+      }, []);
+
+      const saveProxyUrl = useCallback((val) => {
+        setProxyUrlState(val);
+        try {
+          if (val) sessionStorage.setItem(SESSION_PROXY_STORAGE, val);
+          else sessionStorage.removeItem(SESSION_PROXY_STORAGE);
+        } catch {}
+      }, []);
+
+      const authConfig = useMemo(() => ({ apiKey, proxyUrl }), [apiKey, proxyUrl]);
+
+      const [darkMode, setDarkMode] = useState(true);
+      const [toast, setToast] = useState(null);
+
+      const [imageA, setImageA] = useState(null);
+      const [imageB, setImageB] = useState(null);
+      const [subjectAnchorA, setSubjectAnchorA] = useState(null);
+
+      const [keypoints, setKeypoints] = useState(COCO_KEYPOINTS);
+      const [showSkeleton, setShowSkeleton] = useState(false);
+      const [poseAnalysis, setPoseAnalysis] = useState(null);
+      const [isAnalyzingPose, setIsAnalyzingPose] = useState(false);
+
+      const [weights, setWeights] = useState({
+        identity: 90,
+        poseOutfit: 85,
+        composition: 75
+      });
+
+      const [mode, setMode] = useState("full-transform");
+      const [strategy, setStrategy] = useState("disentangled");
+      const [userPrompt, setUserPrompt] = useState(
+        "自然肌膚質感，85mm 人像鏡頭，電影級柔和自然光，高畫質寫實攝影"
+      );
+      const [aspectRatio, setAspectRatio] = useState("3:4");
+      const [variations, setVariations] = useState(1);
+
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [progressInfo, setProgressInfo] = useState({
+        stage: "",
+        percent: 0,
+        completed: 0,
+        total: 0,
+        etaSeconds: null
+      });
+      const [errorMsg, setErrorMsg] = useState(null);
+      const [results, setResults] = useState([]);
+      const [compareItem, setCompareItem] = useState(null);
+      const abortControllerRef = useRef(null);
+
+      const [maskTarget, setMaskTarget] = useState(null);
+      const [history, setHistory] = useState([]);
+      const [historySearch, setHistorySearch] = useState("");
+      const [onlyFavorites, setOnlyFavorites] = useState(false);
+
+      const notify = useCallback((type, message) => {
+        setToast({ type, message });
+        setTimeout(() => {
+          setToast((prev) => (prev?.message === message ? null : prev));
+        }, 4000);
+      }, []);
+
+      const handleImageAChange = useCallback(
+        (nextImg) => {
+          setImageA((prev) => {
+            if (prev?.objectUrl && prev.objectUrl !== nextImg?.objectUrl && prev.objectUrl !== imageB?.objectUrl) {
+              const inHistory = history.some(
+                (h) => h.imageAUrl === prev.objectUrl || h.resultUrl === prev.objectUrl
+              );
+              if (!inHistory) urlManagerRef.current.revoke(prev.objectUrl);
+            }
+            return nextImg;
+          });
+          setSubjectAnchorA(null);
+          if (nextImg?.objectUrl && (authConfig.apiKey || authConfig.proxyUrl)) {
+            analyzeSubjectIdentityA(nextImg.objectUrl, authConfig)
+              .then((anchor) => {
+                if (anchor) setSubjectAnchorA(anchor);
+              })
+              .catch(() => {});
+          }
+        },
+        [authConfig, history, imageB?.objectUrl]
+      );
+
+      const handleImageBChange = useCallback(
+        async (nextImg) => {
+          setImageB((prev) => {
+            if (prev?.objectUrl && prev.objectUrl !== nextImg?.objectUrl && prev.objectUrl !== imageA?.objectUrl) {
+              const inHistory = history.some(
+                (h) => h.imageBUrl === prev.objectUrl || h.resultUrl === prev.objectUrl
+              );
+              if (!inHistory) urlManagerRef.current.revoke(prev.objectUrl);
+            }
+            return nextImg;
+          });
+          setPoseAnalysis(null);
+          setShowSkeleton(false);
+          if (!nextImg?.objectUrl || (!authConfig.apiKey && !authConfig.proxyUrl)) return;
+
+          setIsAnalyzingPose(true);
+          try {
+            const analysis = await analyzeReferenceImageB(nextImg.objectUrl, authConfig);
+            setPoseAnalysis(analysis);
+            if (Array.isArray(analysis.keypoints) && analysis.keypoints.length >= 10) {
+              const merged = COCO_KEYPOINTS.map((baseKp) => {
+                const found = analysis.keypoints.find((k) => k.id === baseKp.id);
+                return found
+                  ? {
+                      ...baseKp,
+                      x: Math.max(20, Math.min(980, Math.round(found.x))),
+                      y: Math.max(20, Math.min(980, Math.round(found.y)))
+                    }
+                  : baseKp;
+              });
+              setKeypoints(merged);
+              setShowSkeleton(true);
+            }
+          } catch {}
+          finally {
+            setIsAnalyzingPose(false);
+          }
+        },
+        [authConfig, history, imageA?.objectUrl]
+      );
+
+      const handleSwapImages = () => {
+        if (!imageA && !imageB) return;
+        const prevA = imageA;
+        const prevB = imageB;
+        setImageA(prevB);
+        setImageB(prevA);
+        setSubjectAnchorA(null);
+        setPoseAnalysis(null);
+        setShowSkeleton(false);
+        notify("info", "已互換 Image A（主角）與 Image B（參考圖）");
+      };
+
+      const handleAnalyzeImageB = async () => {
+        if (!imageB?.objectUrl) return;
+        if (!apiKey.trim() && !proxyUrl.trim()) {
+          setIsConfigOpen(true);
+          notify("info", "請先設定 Gemini API Key");
+          return;
+        }
+        setIsAnalyzingPose(true);
+        try {
+          const analysis = await analyzeReferenceImageB(imageB.objectUrl, authConfig);
+          setPoseAnalysis(analysis);
+          if (Array.isArray(analysis.keypoints) && analysis.keypoints.length >= 10) {
+            const merged = COCO_KEYPOINTS.map((baseKp) => {
+              const found = analysis.keypoints.find((k) => k.id === baseKp.id);
+              return found
+                ? {
+                    ...baseKp,
+                    x: Math.max(20, Math.min(980, Math.round(found.x))),
+                    y: Math.max(20, Math.min(980, Math.round(found.y)))
+                  }
+                : baseKp;
+            });
+            setKeypoints(merged);
+            setShowSkeleton(true);
+          }
+          notify("success", "已完成 Image B 姿勢、服裝與構圖分析！");
+        } catch (err) {
+          notify("error", `分析失敗：${err.message}`);
+        } finally {
+          setIsAnalyzingPose(false);
+        }
+      };
+
+      const handleGenerate = async () => {
+        if (!imageA) {
+          notify("error", "請先上傳 Image A（人物主角照片）。");
+          return;
+        }
+        if (!imageB) {
+          notify("error", "請先上傳 Image B（姿勢、服裝與構圖參考照片）。");
+          return;
+        }
+        if (!apiKey.trim() && !proxyUrl.trim()) {
+          setIsConfigOpen(true);
+          notify("info", "請先點擊右上角設定您的 Gemini API Key。");
+          return;
+        }
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        setIsGenerating(true);
+        setResults([]);
+        setProgressInfo({
+          stage: "步驟 1/3：正在鎖定主角五官與解耦參考圖結構...",
+          percent: 8,
+          completed: 0,
+          total: variations,
+          etaSeconds: null
+        });
+        setErrorMsg(null);
+
+        try {
+          const {
+            images: generated,
+            failedCount,
+            totalElapsedSec,
+            extractedAnalysisB,
+            extractedKeypoints,
+            extractedSubjectA
+          } = await generateGeminiTransformation(
+            {
+              mode,
+              strategy,
+              imageAUrl: imageA.objectUrl,
+              imageBUrl: imageB.objectUrl,
+              keypoints,
+              imageBSize: { width: imageB.width, height: imageB.height },
+              weights,
+              userPrompt,
+              aspectRatio,
+              variations,
+              poseAnalysis,
+              subjectAnchor: subjectAnchorA,
+              authConfig,
+              urlManager: urlManagerRef.current,
+              onProgress: (info) => setProgressInfo(info),
+              onItemReady: (readyItem) => {
+                setResults((prev) => {
+                  const exists = prev.some((p) => p.id === readyItem.id);
+                  const next = exists ? prev : [...prev, readyItem];
+                  return next.sort((a, b) => a.index - b.index);
+                });
+              }
+            },
+            controller.signal
+          );
+
+          if (extractedAnalysisB && !poseAnalysis) setPoseAnalysis(extractedAnalysisB);
+          if (extractedKeypoints) setKeypoints(extractedKeypoints);
+          if (extractedSubjectA && !subjectAnchorA) setSubjectAnchorA(extractedSubjectA);
+
+          setResults(generated);
+          setHistory((prev) => [
+            ...generated.map((item) => ({
+              id: item.id,
+              timestamp: new Date().toLocaleString("zh-TW"),
+              mode,
+              userPrompt,
+              aspectRatio,
+              weights: { ...weights },
+              imageAUrl: imageA.objectUrl,
+              imageBUrl: imageB.objectUrl,
+              resultUrl: item.objectUrl,
+              favorite: false
+            })),
+            ...prev
+          ]);
+
+          if (failedCount > 0) {
+            notify(
+              "info",
+              `已生成 ${generated.length} 張影像（${failedCount} 張未完成），總耗時 ${totalElapsedSec} 秒。`
+            );
+          } else {
+            notify("success", `成功生成 ${generated.length} 張轉換影像（耗時 ${totalElapsedSec} 秒）！`);
+          }
+        } catch (err) {
+          if (err.name === "AbortError") {
+            notify("info", "已停止生成任務。");
+          } else {
+            setErrorMsg(err.message);
+            notify("error", `生成失敗：${err.message}`);
+          }
+        } finally {
+          setIsGenerating(false);
+          abortControllerRef.current = null;
+        }
+      };
+
+      const handleCancel = () => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+          setIsGenerating(false);
+        }
+      };
+
+      const handleInpaint = async (payload) => {
+        if (!apiKey.trim() && !proxyUrl.trim()) {
+          setIsConfigOpen(true);
+          notify("info", "請先設定 Gemini API Key。");
+          return;
+        }
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        setIsGenerating(true);
+        setErrorMsg(null);
+
+        try {
+          const generated = await executeGeminiInpaint(
+            payload,
+            authConfig,
+            urlManagerRef.current,
+            controller.signal
+          );
+          const enriched = generated.map((g, i) => ({
+            ...g,
+            id: `inpaint_${Date.now()}_${i}`,
+            index: i,
+            timestamp: new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })
+          }));
+
+          setResults(enriched);
+          setHistory((prev) => [
+            ...enriched.map((item) => ({
+              id: item.id,
+              timestamp: new Date().toLocaleString("zh-TW"),
+              mode: "局部重繪微調",
+              userPrompt: payload.prompt,
+              aspectRatio,
+              weights: { ...weights },
+              imageAUrl: payload.baseImageUrl,
+              imageBUrl: null,
+              resultUrl: item.objectUrl,
+              favorite: false
+            })),
+            ...prev
+          ]);
+          setActiveTab("studio");
+          notify("success", "局部微調重繪完成！");
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            setErrorMsg(err.message);
+            notify("error", `局部重繪失敗：${err.message}`);
+          }
+        } finally {
+          setIsGenerating(false);
+          abortControllerRef.current = null;
+        }
+      };
+
+      const downloadObjectUrl = (objectUrl, filename = "gemini_portrait.png") => {
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        notify("success", `已下載 ${filename}`);
+      };
+
+      const setResultAsImageA = (objectUrl) => {
+        const img = new window.Image();
+        img.onload = () => {
+          setImageA({
+            name: `Transformed_${Date.now()}.png`,
+            sizeFormatted: "Blob PNG",
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            objectUrl
+          });
+          notify("success", "已將此生成圖設為 Image A，可繼續進行下一輪轉換！");
+        };
+        img.src = objectUrl;
+      };
+
+      const handleDeleteHistoryItem = (item) => {
+        setHistory((prev) => prev.filter((h) => h.id !== item.id));
+        if (
+          item.resultUrl &&
+          item.resultUrl !== imageA?.objectUrl &&
+          item.resultUrl !== imageB?.objectUrl &&
+          !results.some((r) => r.objectUrl === item.resultUrl)
+        ) {
+          urlManagerRef.current.revoke(item.resultUrl);
+        }
+      };
+
+      const availableMaskSources = useMemo(() => {
+        const list = [];
+        results.forEach((r, idx) =>
+          list.push({ id: r.id, label: `生成結果 #${idx + 1}`, objectUrl: r.objectUrl })
+        );
+        if (imageA) list.push({ id: "imgA", label: "Image A (人物原圖)", objectUrl: imageA.objectUrl });
+        if (imageB) list.push({ id: "imgB", label: "Image B (參考圖)", objectUrl: imageB.objectUrl });
+        return list;
+      }, [results, imageA, imageB]);
+
+      const filteredHistory = useMemo(() => {
+        return history.filter((h) => {
+          if (onlyFavorites && !h.favorite) return false;
+          if (historySearch.trim() && !h.userPrompt?.toLowerCase().includes(historySearch.toLowerCase())) {
+            return false;
+          }
+          return true;
+        });
+      }, [history, onlyFavorites, historySearch]);
+
+      const rootBg = darkMode ? "bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-900";
+      const surfaceBg = darkMode ? "bg-zinc-900/90 border-zinc-800" : "bg-white border-zinc-200 shadow-sm";
+      const hasAuthConfigured = Boolean(apiKey.trim() || proxyUrl.trim());
+
+      return (
+        <div className={`min-h-screen flex flex-col transition-colors ${rootBg}`}>
+          <header
+            className={`sticky top-0 z-30 border-b backdrop-blur-xl px-4 sm:px-6 py-3 ${
+              darkMode ? "bg-zinc-950/85 border-zinc-800/90" : "bg-white/85 border-zinc-200"
+            }`}
+          >
+            <div className="max-w-[1480px] mx-auto flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md">
+                  <Icon name="sparkles" className="w-5 h-5" />
+                </div>
+                <div>
+                  <h1 className="font-bold text-base sm:text-lg tracking-tight">
+                    AI 影像姿勢與服裝轉換工作室
+                  </h1>
+                  <p className={`text-xs ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                    Gemini 雙圖參照合成 • GitHub Pages 獨立運行版
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <nav className="flex items-center gap-1 p-1 rounded-xl bg-zinc-900/60 border border-zinc-800/80">
+                  {[
+                    { id: "studio", label: "影像轉換工作室", icon: "wand" },
+                    { id: "mask", label: "局部微調重繪", icon: "brush" },
+                    { id: "history", label: "歷史作品集", icon: "history", count: history.length }
+                  ].map((tab) => {
+                    const active = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                          active
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : darkMode
+                            ? "text-zinc-400 hover:text-zinc-100"
+                            : "text-zinc-600 hover:text-zinc-900"
+                        }`}
+                      >
+                        <Icon name={tab.icon} className="w-3.5 h-3.5" />
+                        <span>{tab.label}</span>
+                        {tab.count > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/15">
+                            {tab.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                <button
+                  type="button"
+                  onClick={() => setIsConfigOpen(true)}
+                  className={`px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition ${
+                    hasAuthConfigured
+                      ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-400 hover:bg-emerald-500/20"
+                      : "bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25"
+                  }`}
+                >
+                  <Icon name="key" className="w-3.5 h-3.5" />
+                  <span>
+                    {proxyUrl.trim() ? "後端代理已連線" : apiKey.trim() ? "API Key 已就緒" : "設定 API Key"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDarkMode((d) => !d)}
+                  className={`p-2 rounded-xl border transition ${
+                    darkMode
+                      ? "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300"
+                      : "bg-zinc-100 border-zinc-200 hover:bg-zinc-200 text-zinc-700"
+                  }`}
+                  title="切換深色 / 淺色外觀"
+                >
+                  <Icon name={darkMode ? "sun" : "moon"} className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {toast && (
+            <div className="fixed bottom-5 right-5 z-50 max-w-sm">
+              <div
+                className={`px-4 py-3 rounded-xl border shadow-xl backdrop-blur-xl flex items-center gap-2.5 text-xs font-medium ${
+                  toast.type === "error"
+                    ? "bg-rose-950/95 border-rose-500/50 text-rose-200"
+                    : toast.type === "success"
+                    ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200"
+                    : "bg-zinc-900/95 border-indigo-500/40 text-zinc-100"
+                }`}
+              >
+                <Icon
+                  name={toast.type === "error" ? "xCircle" : toast.type === "success" ? "checkCircle" : "info"}
+                  className={`w-4 h-4 shrink-0 ${
+                    toast.type === "error"
+                      ? "text-rose-400"
+                      : toast.type === "success"
+                      ? "text-emerald-400"
+                      : "text-indigo-400"
+                  }`}
+                />
+                <span>{toast.message}</span>
+              </div>
+            </div>
+          )}
+
+          <main className="flex-1 max-w-[1480px] w-full mx-auto px-4 sm:px-6 py-6">
+            {activeTab === "studio" && (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                <div className="xl:col-span-7 space-y-5">
+                  {!hasAuthConfigured && (
+                    <div className="p-3.5 rounded-2xl border border-amber-500/35 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 text-amber-200">
+                        <Icon name="key" className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>尚未輸入 Gemini API Key，請先點擊右側按鈕填入您的金鑰即可開始生成。</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsConfigOpen(true)}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold"
+                      >
+                        立即設定金鑰
+                      </button>
+                    </div>
+                  )}
+
+                  {(imageA || imageB) && (
+                    <div className="flex items-center justify-between px-1">
+                      <span className={`text-xs ${darkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                        上傳後系統將自動鎖定主角特徵並解析參考圖骨架與穿搭
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSwapImages}
+                        className={`px-3 py-1 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition ${
+                          darkMode
+                            ? "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300"
+                            : "bg-white border-zinc-200 hover:bg-zinc-100 text-zinc-700"
+                        }`}
+                      >
+                        <Icon name="swap" className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>互換 A / B 照片</span>
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ReferenceImageCard
+                      badge="Image A"
+                      title="人物主角（保留五官特徵）"
+                      subtitle="AI 將鎖定此人物的臉部五官與自然神韻"
+                      imageState={imageA}
+                      onImageChange={handleImageAChange}
+                      onNotify={notify}
+                      darkMode={darkMode}
+                      urlManager={urlManagerRef.current}
+                    />
+
+                    <ReferenceImageCard
+                      badge="Image B"
+                      title="姿勢、服裝與構圖參考"
+                      subtitle="AI 將自動提取此照片的骨架動作、服裝與光影"
+                      imageState={imageB}
+                      onImageChange={handleImageBChange}
+                      onNotify={notify}
+                      darkMode={darkMode}
+                      urlManager={urlManagerRef.current}
+                      isReferenceB
+                      keypoints={keypoints}
+                      onKeypointsChange={setKeypoints}
+                      showSkeleton={showSkeleton}
+                      onToggleSkeleton={() => setShowSkeleton((s) => !s)}
+                      poseAnalysis={poseAnalysis}
+                      onAnalyzePose={handleAnalyzeImageB}
+                      isAnalyzingPose={isAnalyzingPose}
+                    />
+                  </div>
+
+                  <div className={`rounded-2xl border p-5 space-y-5 ${surfaceBg}`}>
+                    <div>
+                      <label className="block text-xs font-semibold mb-2 text-zinc-400">
+                        1. 選擇轉換模式
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {TRANSFORM_MODES.map((item) => {
+                          const active = mode === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setMode(item.id)}
+                              className={`p-3 rounded-xl border text-left transition ${
+                                active
+                                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                                  : darkMode
+                                  ? "bg-zinc-950/70 border-zinc-800 hover:border-zinc-700 text-zinc-300"
+                                  : "bg-zinc-50 border-zinc-200 hover:border-zinc-300 text-zinc-700"
+                              }`}
+                            >
+                              <div className="text-xs font-semibold mb-1">{item.label}</div>
+                              <div className="text-[11px] opacity-75 leading-snug">{item.desc}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold mb-2 text-zinc-400">
+                        2. 生成架構策略
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {PIPELINE_STRATEGIES.map((st) => {
+                          const active = strategy === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => setStrategy(st.id)}
+                              className={`p-2.5 rounded-xl border text-left transition ${
+                                active
+                                  ? "bg-violet-600/15 border-violet-500 text-violet-300"
+                                  : darkMode
+                                  ? "bg-zinc-950/70 border-zinc-800 hover:border-zinc-700 text-zinc-300"
+                                  : "bg-zinc-50 border-zinc-200 hover:border-zinc-300 text-zinc-700"
+                              }`}
+                            >
+                              <div className="text-xs font-semibold">{st.label}</div>
+                              <div className="text-[11px] opacity-75 mt-0.5">{st.desc}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div
+                        className={`p-3.5 rounded-xl border ${
+                          darkMode ? "bg-zinc-950/70 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <Icon name="userCheck" className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>人物五官保留度</span>
+                          </span>
+                          <span className="font-mono font-bold text-indigo-400">{weights.identity}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={weights.identity}
+                          onChange={(e) => setWeights((w) => ({ ...w, identity: Number(e.target.value) }))}
+                          className="w-full accent-indigo-500"
+                        />
+                      </div>
+
+                      <div
+                        className={`p-3.5 rounded-xl border ${
+                          darkMode ? "bg-zinc-950/70 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <Icon name="shirt" className="w-3.5 h-3.5 text-violet-400" />
+                            <span>姿勢與服裝還原度</span>
+                          </span>
+                          <span className="font-mono font-bold text-violet-400">{weights.poseOutfit}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={weights.poseOutfit}
+                          onChange={(e) => setWeights((w) => ({ ...w, poseOutfit: Number(e.target.value) }))}
+                          className="w-full accent-violet-500"
+                        />
+                      </div>
+
+                      <div
+                        className={`p-3.5 rounded-xl border ${
+                          darkMode ? "bg-zinc-950/70 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-medium flex items-center gap-1.5">
+                            <Icon name="person" className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>構圖與光影氛圍</span>
+                          </span>
+                          <span className="font-mono font-bold text-emerald-400">{weights.composition}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={weights.composition}
+                          onChange={(e) => setWeights((w) => ({ ...w, composition: Number(e.target.value) }))}
+                          className="w-full accent-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-xs font-semibold">補充畫面與服裝細節描述（選填）</label>
+                        <div className="flex flex-wrap gap-1">
+                          {["自然棚拍光", "街拍膠片感", "高級時裝質感"].map((tag, i) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setUserPrompt(PROMPT_PRESETS[i])}
+                              className="px-2 py-0.5 rounded-md text-[11px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/25"
+                            >
+                              + {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={userPrompt}
+                        onChange={(e) => setUserPrompt(e.target.value)}
+                        placeholder="可補充希望強調的服裝材質、背景氛圍或攝影光線..."
+                        className={`w-full rounded-xl border p-3 text-xs leading-relaxed focus:outline-none focus:border-indigo-500 ${
+                          darkMode
+                            ? "bg-zinc-950 border-zinc-800 text-zinc-100"
+                            : "bg-zinc-50 border-zinc-300 text-zinc-900"
+                        }`}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <label className="block text-[11px] text-zinc-400 mb-1">畫面比例</label>
+                          <select
+                            value={aspectRatio}
+                            onChange={(e) => setAspectRatio(e.target.value)}
+                            className={`rounded-xl border px-3 py-2 text-xs font-mono ${
+                              darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-300"
+                            }`}
+                          >
+                            {["3:4", "1:1", "4:3", "9:16", "16:9"].map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] text-zinc-400 mb-1">一次生成張數</label>
+                          <select
+                            value={variations}
+                            onChange={(e) => setVariations(Number(e.target.value))}
+                            className={`rounded-xl border px-3 py-2 text-xs ${
+                              darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-300"
+                            }`}
+                          >
+                            {[1, 2, 3, 4].map((n) => (
+                              <option key={n} value={n}>
+                                生成 {n} 張
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
+                        <button
+                          type="button"
+                          disabled={isGenerating}
+                          onClick={handleGenerate}
+                          className="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition"
+                        >
+                          <Icon name="sparkles" className={`w-4 h-4 ${isGenerating ? "animate-spin" : ""}`} />
+                          <span>{isGenerating ? "Gemini 正在合成轉換中..." : "立即開始轉換"}</span>
+                        </button>
+
+                        {isGenerating && (
+                          <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="px-4 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1"
+                          >
+                            <Icon name="square" className="w-3.5 h-3.5" />
+                            <span>停止</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="xl:col-span-5">
+                  <div className={`rounded-2xl border p-5 min-h-[600px] flex flex-col ${surfaceBg}`}>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="font-semibold text-base flex items-center gap-2">
+                          <Icon name="camera" className="w-4 h-4 text-indigo-400" />
+                          <span>轉換結果預覽</span>
+                        </h3>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          點擊圖片可左右滑動對比原圖，或送入局部微調修改細節
+                        </p>
+                      </div>
+                      {results.length > 0 && (
+                        <span className="px-2.5 py-1 rounded-full text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          完成 {results.length} 張
+                        </span>
+                      )}
+                    </div>
+
+                    {errorMsg && (
+                      <div className="mb-4 p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-200 text-xs space-y-1">
+                        <div className="font-semibold text-rose-400 flex items-center gap-1.5">
+                          <Icon name="alert" className="w-4 h-4" />
+                          <span>生成發生錯誤</span>
+                        </div>
+                        <p>{errorMsg}</p>
+                      </div>
+                    )}
+
+                    {isGenerating && (
+                      <div className="mb-4 rounded-xl border border-indigo-500/35 bg-indigo-950/15 p-5 space-y-3">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-indigo-300 flex items-center gap-2">
+                            <Icon name="sparkles" className="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
+                            <span>{progressInfo.stage || "正在處理影像轉換..."}</span>
+                          </span>
+                          <span className="font-mono font-bold text-indigo-400">
+                            {progressInfo.percent}%
+                          </span>
+                        </div>
+
+                        <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+                          <div
+                            style={{ width: `${progressInfo.percent}%` }}
+                            className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-300"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                          <span>
+                            進度：{progressInfo.completed} / {progressInfo.total} 張（完成單張即即時顯示）
+                          </span>
+                          {progressInfo.etaSeconds !== null && progressInfo.etaSeconds > 0 && (
+                            <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                              <Icon name="clock" className="w-3 h-3" />
+                              <span>預估剩餘 {progressInfo.etaSeconds} 秒</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {!isGenerating && results.length === 0 && (
+                      <div
+                        className={`flex-1 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-8 text-center ${
+                          darkMode ? "border-zinc-800 text-zinc-500" : "border-zinc-200 text-zinc-400"
+                        }`}
+                      >
+                        <Icon name="image" className="w-12 h-12 mb-3 opacity-40" />
+                        <p className="text-sm font-medium mb-1">尚未產生轉換影像</p>
+                        <p className="text-xs max-w-xs">
+                          請在左側上傳「Image A 人物主角」與「Image B 姿勢服裝參考」，然後點擊「立即開始轉換」。
+                        </p>
+                      </div>
+                    )}
+
+                    {results.length > 0 && (
+                      <div
+                        className={`grid gap-4 ${
+                          results.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"
+                        }`}
+                      >
+                        {results.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className={`rounded-xl border overflow-hidden flex flex-col group ${
+                              darkMode ? "bg-zinc-950 border-zinc-800" : "bg-zinc-50 border-zinc-200"
+                            }`}
+                          >
+                            <div className="relative aspect-[3/4] bg-black overflow-hidden">
+                              <img
+                                src={item.objectUrl}
+                                alt={`Result ${idx + 1}`}
+                                onClick={() => setCompareItem(item)}
+                                className="w-full h-full object-contain cursor-zoom-in group-hover:scale-[1.02] transition-transform"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setCompareItem(item)}
+                                className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/75 hover:bg-indigo-600 text-white border border-white/10"
+                                title="前後對比"
+                              >
+                                <Icon name="split" className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="p-2.5 grid grid-cols-2 gap-1.5 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => setCompareItem(item)}
+                                className="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 flex items-center justify-center gap-1"
+                              >
+                                <Icon name="split" className="w-3 h-3" />
+                                <span>對比原圖</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadObjectUrl(item.objectUrl, `transform_${idx + 1}.png`)}
+                                className="px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center justify-center gap-1"
+                              >
+                                <Icon name="download" className="w-3 h-3" />
+                                <span>下載</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMaskTarget({ label: `生成結果 #${idx + 1}`, objectUrl: item.objectUrl });
+                                  setActiveTab("mask");
+                                }}
+                                className="px-2 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 flex items-center justify-center gap-1"
+                              >
+                                <Icon name="brush" className="w-3 h-3" />
+                                <span>局部微調</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResultAsImageA(item.objectUrl)}
+                                className="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center gap-1"
+                              >
+                                <Icon name="refresh" className="w-3 h-3" />
+                                <span>設為主角 A</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "mask" && (
+              <SimpleMaskEditor
+                targetImage={maskTarget || availableMaskSources[0] || null}
+                referenceImage={imageA}
+                availableSources={availableMaskSources}
+                onSelectSource={setMaskTarget}
+                onExecuteInpaint={handleInpaint}
+                isGenerating={isGenerating}
+                darkMode={darkMode}
+              />
+            )}
+
+            {activeTab === "history" && (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold">歷史生成作品集</h2>
+                    <p className="text-xs text-zinc-400">查看過往轉換結果、下載或一鍵套用當時的設定</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Icon
+                        name="search"
+                        className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2"
+                      />
+                      <input
+                        type="text"
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        placeholder="搜尋描述關鍵字..."
+                        className={`pl-8 pr-3 py-1.5 rounded-xl border text-xs ${
+                          darkMode ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-300"
+                        }`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOnlyFavorites((f) => !f)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs flex items-center gap-1 ${
+                        onlyFavorites
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                          : darkMode
+                          ? "bg-zinc-900 border-zinc-800 text-zinc-300"
+                          : "bg-white border-zinc-300 text-zinc-700"
+                      }`}
+                    >
+                      <Icon name="star" className="w-3.5 h-3.5" />
+                      <span>收藏</span>
+                    </button>
+                  </div>
+                </div>
+
+                {filteredHistory.length === 0 ? (
+                  <div className={`rounded-2xl border p-12 text-center ${surfaceBg}`}>
+                    <Icon name="history" className="w-10 h-10 mx-auto mb-2 text-zinc-500 opacity-50" />
+                    <p className="text-sm font-medium">目前尚無歷史作品紀錄</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {filteredHistory.map((item) => (
+                      <div key={item.id} className={`rounded-2xl border overflow-hidden flex flex-col ${surfaceBg}`}>
+                        <div className="relative aspect-[3/4] bg-black">
+                          <img
+                            src={item.resultUrl}
+                            alt="History"
+                            onClick={() => setCompareItem({ objectUrl: item.resultUrl })}
+                            className="w-full h-full object-contain cursor-zoom-in"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setHistory((prev) =>
+                                prev.map((h) => (h.id === item.id ? { ...h, favorite: !h.favorite } : h))
+                              )
+                            }
+                            className={`absolute top-2 right-2 p-1.5 rounded-lg backdrop-blur-md border ${
+                              item.favorite
+                                ? "bg-amber-500/30 border-amber-400 text-amber-300"
+                                : "bg-black/60 border-white/15 text-zinc-300"
+                            }`}
+                          >
+                            <Icon name="star" className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="text-[11px] text-zinc-400 font-mono">{item.timestamp}</div>
+                            <p className="text-xs text-zinc-300 line-clamp-2 mt-1">{item.userPrompt}</p>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-zinc-800/80 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUserPrompt(item.userPrompt || "");
+                                if (item.weights) setWeights(item.weights);
+                                setActiveTab("studio");
+                                notify("info", "已套用歷史參數設定");
+                              }}
+                              className="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 flex items-center justify-center gap-1"
+                            >
+                              <Icon name="refresh" className="w-3 h-3" />
+                              <span>套用</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadObjectUrl(item.resultUrl, `gemini_${Date.now()}.png`)}
+                              className="px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-1"
+                            >
+                              <Icon name="download" className="w-3 h-3" />
+                              <span>下載</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHistoryItem(item)}
+                              className="px-2 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 flex items-center justify-center gap-1"
+                            >
+                              <Icon name="trash" className="w-3 h-3" />
+                              <span>刪除</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+
+          <SplitCompareModal
+            item={compareItem}
+            sourceA={imageA}
+            sourceB={imageB}
+            onClose={() => setCompareItem(null)}
+            onDownload={downloadObjectUrl}
+          />
+
+          <ApiConfigModal
+            isOpen={isConfigOpen}
+            onClose={() => setIsConfigOpen(false)}
+            apiKey={apiKey}
+            onSaveApiKey={(k) => {
+              saveApiKey(k);
+              notify("success", k ? "已儲存工作階段 Gemini API Key" : "已清除 API Key");
+            }}
+            proxyUrl={proxyUrl}
+            onSaveProxyUrl={(p) => {
+              saveProxyUrl(p);
+              if (p.trim()) notify("success", "已啟用後端安全代理端點");
+            }}
+            darkMode={darkMode}
+          />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
